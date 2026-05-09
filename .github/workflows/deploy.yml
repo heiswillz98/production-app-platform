@@ -104,7 +104,7 @@ jobs:
           aws ssm send-command \
             --instance-ids i-044fe3f9524c8e40b \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["/opt/devops-assessment/deploy.sh ${{ env.ECR_REGISTRY }} ${{ github.sha }}"]' \
+            --parameters 'commands=["/opt/devops-assessment/deploy.sh ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }} ${{ github.sha }}"]' \
             --region ${{ env.AWS_REGION }}
           
           echo "Deployment command sent to EC2 instance..."
