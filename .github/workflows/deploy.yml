@@ -98,58 +98,29 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           EC2_HOST: ${{ env.EC2_HOST }}
         run: |
-          echo "Deploying application to EC2 instance..."
+          echo "Deploying application to EC2 instance using SSM..."
           
-          # Create deployment script
-          cat > deploy.sh << 'EOF'
-          #!/bin/bash
-          set -e
+          # Use SSM to run deployment script on EC2 instance
+          aws ssm send-command \
+            --instance-ids i-044fe3f9524c8e40b \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["/opt/devops-assessment/deploy.sh ${{ env.ECR_REGISTRY }} ${{ github.sha }}"]' \
+            --region ${{ env.AWS_REGION }}
           
-          ECR_REGISTRY="$1"
-          IMAGE_TAG="$2"
+          echo "Deployment command sent to EC2 instance..."
           
-          echo "Deploying application from $ECR_REGISTRY/devops-assessment-prod-repository:$IMAGE_TAG"
-          
-          # Execute deployment on EC2 instance
-          ssh -o StrictHostKeyChecking=no ubuntu@$EC2_HOST "
-            # Login to ECR
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
-            
-            # Stop existing container
-            docker stop devops-assessment-app 2>/dev/null || true
-            docker rm devops-assessment-app 2>/dev/null || true
-            
-            # Pull new image
-            docker pull $ECR_REGISTRY/devops-assessment-prod-repository:$IMAGE_TAG
-            
-            # Run new container
-            docker run -d \
-              --name devops-assessment-app \
-              --restart unless-stopped \
-              -p 3000:3000 \
-              -v /opt/devops-assessment/logs:/app/logs \
-              -e NODE_ENV=production \
-              -e PORT=3000 \
-              -e LOG_LEVEL=info \
-              $ECR_REGISTRY/devops-assessment-prod-repository:$IMAGE_TAG
-            
-            echo 'Deployment completed successfully!'
-            echo 'Application is running on port 3000'
-          "
+          # Wait for deployment
+          echo "Waiting for deployment to complete..."
+          sleep 30
           
           # Health check
           echo "Performing health check..."
-          sleep 10
-          if curl -f http://$EC2_HOST:3000/health; then
+          if curl -f http://${{ env.EC2_HOST }}:3000/health; then
             echo "✅ Health check passed!"
           else
             echo "❌ Health check failed!"
             exit 1
           fi
-          EOF
-          
-          chmod +x deploy.sh
-          ./deploy.sh $ECR_REGISTRY $IMAGE_TAG
 
       - name: Notify deployment status
         if: always()
