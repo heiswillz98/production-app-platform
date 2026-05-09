@@ -113,15 +113,16 @@ jobs:
       - name: Validate EC2 Instance
         env:
           AWS_REGION: ${{ env.AWS_REGION }}
+          INSTANCE_ID: ${{ env.INSTANCE_ID }}
         run: |
           echo "Validating EC2 instance is ready for SSM..."
           
           # Check if instance is running
           INSTANCE_STATE=$(aws ec2 describe-instances \
-            --instance-ids ${{ env.INSTANCE_ID }} \
+            --instance-ids $INSTANCE_ID \
             --query "Reservations[0].Instances[0].State.Name" \
             --output text \
-            --region ${{ env.AWS_REGION }})
+            --region $AWS_REGION)
           
           if [ "$INSTANCE_STATE" != "running" ]; then
             echo "❌ EC2 instance is not running (state: $INSTANCE_STATE)"
@@ -130,10 +131,10 @@ jobs:
           
           # Check if SSM agent is ready
           SSM_STATUS=$(aws ssm describe-instance-information \
-            --filters "Key=InstanceIds,Values=${{ env.INSTANCE_ID }}" \
+            --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
             --query "InstanceInformationList[0].PingStatus" \
             --output text \
-            --region ${{ env.AWS_REGION }})
+            --region $AWS_REGION)
           
           if [ "$SSM_STATUS" != "Online" ]; then
             echo "❌ SSM agent is not ready (status: $SSM_STATUS)"
@@ -148,15 +149,17 @@ jobs:
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
           EC2_HOST: ${{ env.EC2_HOST }}
+          INSTANCE_ID: ${{ env.INSTANCE_ID }}
+          AWS_REGION: ${{ env.AWS_REGION }}
         run: |
           echo "Deploying application to EC2 instance using SSM..."
           
           # Use SSM to run deployment script on EC2 instance
           aws ssm send-command \
-            --instance-ids ${{ env.INSTANCE_ID }} \
+            --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["/opt/devops-assessment/deploy.sh ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }} ${{ github.sha }}"]' \
-            --region ${{ env.AWS_REGION }}
+            --parameters 'commands=["/opt/devops-assessment/deploy.sh $ECR_REGISTRY/$ECR_REPOSITORY $IMAGE_TAG"]' \
+            --region $AWS_REGION
           
           echo "Deployment command sent to EC2 instance..."
           
